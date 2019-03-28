@@ -1,31 +1,43 @@
+// constants
+const ENDPOINT = "https://mighty-meadow-26007.herokuapp.com"
+
 // Log the URLs we need
-server.log("Turn Cases On: " + http.agenturl() + "?cases=1");
-server.log("Turn Cases Off: " + http.agenturl() + "?cases=0");
+server.log("Tell backend On: " + http.agenturl() + "?backend=1");
+server.log("Tell backend Off (default): " + http.agenturl() + "?backend=0");
+server.log("Detect Motion (default): " + http.agenturl() + "?motion=1");
+server.log("Detect No-Motion: " + http.agenturl() + "?motion=0");
+server.log("Query state: " + http.agenturl() + "?state=1");
+
+// declarations
+backend <- false;
+motion <- true;
 
 function requestHandler(request, response) {
-  try {
-    // Check if the user sent led as a query parameter
-    if ("cases" in request.query) {
-      // If they did, and led = 1 or 0, set our variable to 1
-      if (request.query.cases == "1" || request.query.cases == "0") {
-        // Convert the led query parameter to a Boolean
-        local casesState = (request.query.cases == "0") ? false : true;
-
-        // Send "set.led" message to device, and send ledState as the data
-        device.send("set.cases", casesState); 
-      }
+    try {
+        if ("motion" in request.query) {
+            motion = request.query.motion == "1";
+            device.send("set.motion", motion);
+        } else if ("backend" in request.query) {
+            backend = request.query.backend == "1";
+            device.send("set.backend", backend);
+        }
+        
+        // send state back
+        response.send(200, "{\"motion\": " + (motion ? "true" : "false") + ", \"backend\": " + (backend ? true : false) + "}");
+        
+    } catch (ex) {
+        response.send(500, "{\"status\": \"error\", \"error\": \"" + err + "\"}");
     }
-    
-    // Send a response back to the browser saying everything was OK.
-    response.send(200, "OK");
-  } catch (ex) {
-    response.send(500, "Internal Server Error: " + ex);
-  }
 }
 
 function dataAccelerometer(data) {
-  local message = format("Data from my Explorer Kit! [x: %.2f | y: %.2f | z: %.2f]", data.x, data.y, data.z);
-  server.log(message);
+    local message = format("Agent received data from accelerometer [x: %.2f | y: %.2f | z: %.2f]", data.x, data.y, data.z);
+    server.log(message);
+    if (!backend) return;
+    
+    // we should send data to backend
+    local request = http.post(ENDPOINT, {"Content-Type": "application/json"}, http.jsonencode(data));
+    local response = request.sendsync();
 }
 
 // Register the HTTP handler to begin watching for HTTP requests from your browser

@@ -6,14 +6,14 @@
 const DATA_PER_SECOND = 100;
 const READ_ACCEL_DELAY = 0.5;
 const ACCEL_THRESHOLD = 0.05;
-DETECT_MOTION <- true;
 
 // 'GLOBALS'
 i2c <- hardware.i2c89;
 spi <- null;
 led <- null;
 state <- false;
-casesState <- false;
+backend <- false;
+motion <- true;
 
 // Configure the I2C bus and the acceleromter connected to it
 i2c.configure(CLOCK_SPEED_400_KHZ);
@@ -29,8 +29,11 @@ hardware.pin1.configure(DIGITAL_OUT, 1);
 // Set up the RGB LED
 led = WS2812(spi, 1);
 
-function setCasesState(state) {
-    casesState = state;
+function setBackend(state) {
+    backend = state;
+}
+function setMotion(state) {
+    motion = state;
 }
 
 function ledOff() {
@@ -49,11 +52,11 @@ function ledOn() {
 
 function readAccel() {
     accelerometer.getAccel(function(data) {
-        local detectMotion = DETECT_MOTION && (data.x < (-1 * ACCEL_THRESHOLD) || data.x > ACCEL_THRESHOLD);
-        local detectNoMotion = !DETECT_MOTION && (data.x > (-1 * ACCEL_THRESHOLD) && (data.x < ACCEL_THRESHOLD));
+        local detectMotion = motion && (data.x < (-1 * ACCEL_THRESHOLD) || data.x > ACCEL_THRESHOLD);
+        local detectNoMotion = !motion && (data.x > (-1 * ACCEL_THRESHOLD) && (data.x < ACCEL_THRESHOLD));
         if (detectMotion || detectNoMotion) {
             server.log(format("Acceleration (G): (%0.2f, %0.2f, %0.2f)", data.x, data.y, data.z));
-            if (casesState) {
+            if (backend) {
                 // log and turn on led
                 ledOn();
                 
@@ -72,7 +75,8 @@ function readAccel() {
 }
 
 // listen for messages from agent
-agent.on("set.cases", setCasesState);
+agent.on("set.backend", setBackend);
+agent.on("set.motion", setMotion);
 
 // read the accelerometer
 readAccel();
