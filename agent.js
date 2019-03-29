@@ -1,5 +1,6 @@
 // constants
-const ENDPOINT = "https://mighty-meadow-26007.herokuapp.com"
+const ENDPOINT = "https://mighty-meadow-26007.herokuapp.com/api/data"
+const BEARER_TOKEN = "<secret>";
 
 // Log the URLs we need
 server.log("Tell backend On: " + http.agenturl() + "?backend=1");
@@ -9,8 +10,10 @@ server.log("Detect No-Motion: " + http.agenturl() + "?motion=0");
 server.log("Query state: " + http.agenturl() + "?state=1");
 
 // declarations
-backend <- false;
+backend <- true;
 motion <- true;
+device.send("set.motion", motion);
+device.send("set.backend", backend);
 
 function requestHandler(request, response) {
     try {
@@ -23,20 +26,32 @@ function requestHandler(request, response) {
         }
         
         // send state back
-        response.send(200, "{\"motion\": " + (motion ? "true" : "false") + ", \"backend\": " + (backend ? true : false) + "}");
+        response.send(200, http.jsonencode({"motion": motion, "backend": backend}));
         
     } catch (ex) {
-        response.send(500, "{\"status\": \"error\", \"error\": \"" + err + "\"}");
+        response.send(500, http.jsonencode({"status": "error", "error": err}));
     }
 }
 
 function dataAccelerometer(data) {
-    local message = format("Agent received data from accelerometer [x: %.2f | y: %.2f | z: %.2f]", data.x, data.y, data.z);
+    local movement = data.movement ? "true" : "false";
+    local message = format("Agent received data from accelerometer [x: %.2f | y: %.2f | z: %.2f | movement: %s]", data.x, data.y, data.z, movement);
     server.log(message);
     if (!backend) return;
     
     // we should send data to backend
-    local request = http.post(ENDPOINT, {"Content-Type": "application/json"}, http.jsonencode(data));
+    local payload = {
+        "type": "motion",
+        "movement": data.movement,
+        "x": data.x, 
+        "y": data.y,
+        "z": data.z
+    }
+    local headers = {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + BEARER_TOKEN
+    }
+    local request = http.post(ENDPOINT, headers, http.jsonencode(payload));
     local response = request.sendsync();
 }
 
